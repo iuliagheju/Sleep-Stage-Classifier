@@ -1,0 +1,52 @@
+version: 1
+
+dataset:
+  name: sleep-edfx
+  version: "1.0.0"
+  subset: sleep-cassette
+  subset_glob: "SC*"
+  recordings: 40
+  subjects: 20
+  nights_per_subject: 2
+
+signals:
+  eeg_channels:
+    default: "Fpz-Cz"
+    optional:
+      - "Pz-Oz"
+      - "Fpz-Cz+Pz-Oz"
+  sampling_rate_hz: 100
+  epoch_length_sec: 30
+
+preprocessing:
+  resample_hz: 100
+  resample_required: false
+
+labels:
+  source: hypnogram
+  mapping:
+    W: W
+    "1": N1
+    "2": N2
+    "3": N3
+    "4": N3
+    R: REM
+  exclude:
+    - "M"
+    - "?"
+  log_exclusions: true
+
+split_policy:
+  subject_id_from: filename_prefix
+  group_by:
+    - subject_id
+  keep_nights_together: true
+  leakage_checks: true
+
+fixture:
+  default_pairs: 10
+  description: "PSG/Hypnogram pairs; 20 EDF files total"
+
+data_paths:
+  raw_dir: "data/raw/sleep-casette"
+  fixture_dir: "data/fixtures"

@@ -21,7 +21,7 @@ def fixture_dataset(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture(scope="session")
 def smoke_run(tmp_path_factory: pytest.TempPathFactory, fixture_dataset: Path) -> dict:
     repo_root = Path(__file__).resolve().parents[1]
-    artifacts_root = tmp_path_factory.mktemp("artifacts")
+    artifacts_root = tmp_path_factory.mktemp("artifacts") / "fixtures" / "loso"
     env = os.environ.copy()
     env["DATA_DIR"] = str(fixture_dataset)
     env["PYTHONPATH"] = str(repo_root)

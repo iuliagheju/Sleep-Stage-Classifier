@@ -1,7 +1,7 @@
 {
-  "dataset_name": "sleep-edfx",
+  "dataset_name": "fixtures",
   "dataset_version": "1.0.0",
-  "dataset_subset": "sleep-telemetry",
+  "dataset_subset": "fixtures",
   "model_name": "classical",
   "features": {
     "use_bandpower": true,

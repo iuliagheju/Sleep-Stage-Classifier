@@ -64,4 +64,4 @@ evaluation:
   fold_index: 0
   held_out_subject_id: null
 artifacts:
-  root: artifacts
+  root: artifacts/fixtures/loso

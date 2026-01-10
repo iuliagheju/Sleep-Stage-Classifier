@@ -179,7 +179,7 @@ def test_cli_train_loso_runs_all_subjects(tmp_path, fixture_dataset):
     env = os.environ.copy()
     env["DATA_DIR"] = str(fixture_dataset)
     env["PYTHONPATH"] = str(repo_root)
-    artifacts_root = tmp_path / "artifacts"
+    artifacts_root = tmp_path / "fixtures" / "loso"
     cmd = [
         sys.executable,
         "-m",

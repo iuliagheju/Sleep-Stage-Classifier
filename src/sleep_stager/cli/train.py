@@ -145,6 +145,37 @@ def _dataset_tag(data_dir: Path) -> str:
     return "unknown"
 
 
+def _dataset_spec_path(dataset_tag: str) -> Path:
+    spec_map = {
+        "sleep-telemetry": "dataset_sleep_edfx_st.yaml",
+        "sleep-cassette": "dataset_sleep_edfx_sc.yaml",
+        "fixtures": "dataset_fixtures.yaml",
+    }
+    if dataset_tag not in spec_map:
+        raise ValueError(f"Unsupported dataset tag '{dataset_tag}'. Check data.dir for dataset naming.")
+    return ROOT / "specs" / spec_map[dataset_tag]
+
+
+def _validate_dataset_alignment(
+    dataset_tag: str, dataset_spec: dict, data_dir: Path, artifact_root: Path
+) -> None:
+    spec_subset = dataset_spec.get("dataset", {}).get("subset", "unknown")
+    if dataset_tag == "unknown":
+        raise ValueError(f"Unable to infer dataset subset from data.dir '{data_dir}'.")
+    if spec_subset != dataset_tag:
+        raise ValueError(
+            "dataset subset mismatch: "
+            f"spec={spec_subset}, data.dir tag={dataset_tag}. Use the matching spec."
+        )
+    artifact_tag = _dataset_tag(artifact_root)
+    if artifact_tag != dataset_tag:
+        raise ValueError(
+            "dataset subset mismatch: "
+            f"artifacts.root tag={artifact_tag}, expected={dataset_tag}. "
+            "Ensure artifacts.root includes the dataset subset."
+        )
+
+
 def _subject_sessions(subjects: Iterable) -> Dict[str, List[str]]:
     sessions: Dict[str, set] = {}
     for subject in subjects:
@@ -196,12 +227,17 @@ def train(
     ),
 ) -> None:
     cfg = _resolve_config(config_path, config_name, override)
-    dataset_spec = _load_yaml(ROOT / "specs" / "dataset_sleep_edfx_st.yaml")
+    data_dir = Path(cfg.data.dir)
+    dataset_tag = _dataset_tag(data_dir)
+    dataset_spec_path = _dataset_spec_path(dataset_tag)
+    dataset_spec = _load_yaml(dataset_spec_path)
     eval_spec = _load_yaml(ROOT / "specs" / "evaluation.yaml")
     hmm_spec = _load_yaml(ROOT / "specs" / "hmm_transition_rules.yaml")
     artifact_schema = _load_yaml(ROOT / "specs" / "artifacts_schema.yaml")
     model_limits = _load_yaml(ROOT / "specs" / "model_limits.yaml")
     gates_spec = _load_yaml(ROOT / "specs" / "gates.yaml")
+    artifact_root = Path(cfg.artifacts.root)
+    _validate_dataset_alignment(dataset_tag, dataset_spec, data_dir, artifact_root)
     spec_hash = _hash_payload(
         {
             "dataset_spec": dataset_spec,
@@ -217,10 +253,8 @@ def train(
     held_out_override = getattr(cfg.evaluation, "held_out_subject_id", None)
     if held_out_override:
         run_id = f"{run_id}_{held_out_override}"
-    artifact_root = Path(cfg.artifacts.root)
     run_dir = artifact_root / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    dataset_spec_path = ROOT / "specs" / "dataset_sleep_edfx_st.yaml"
     evaluation_spec_path = ROOT / "specs" / "evaluation.yaml"
     dataset_spec_copy = run_dir / dataset_spec_path.name
     evaluation_spec_copy = run_dir / evaluation_spec_path.name
@@ -243,12 +277,11 @@ def train(
     )
 
     data_cfg = DataConfig(
-        data_dir=Path(cfg.data.dir),
+        data_dir=data_dir,
         channel=str(getattr(cfg.data, "channel", "Fpz-Cz")),
         epoch_length_sec=int(getattr(cfg.data, "epoch_length_sec", 30)),
         sample_rate=int(getattr(cfg.data, "sample_rate", 100)),
     )
-    dataset_tag = _dataset_tag(data_cfg.data_dir)
     subjects = list(load_subjects(data_cfg))
     pre_cfg = PreprocessConfig(**OmegaConf.to_container(cfg.preprocess, resolve=True))
     for subject in subjects:

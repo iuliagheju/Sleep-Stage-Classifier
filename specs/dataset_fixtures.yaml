@@ -1,0 +1,47 @@
+version: 1
+
+dataset:
+  name: fixtures
+  version: "1.0.0"
+  subset: fixtures
+  subset_glob: "S*"
+  recordings: 0
+  subjects: 0
+  nights_per_subject: 1
+
+signals:
+  eeg_channels:
+    default: "Fpz-Cz"
+    optional: []
+  sampling_rate_hz: 100
+  epoch_length_sec: 30
+
+preprocessing:
+  resample_hz: 100
+  resample_required: false
+
+labels:
+  source: synthetic
+  mapping:
+    W: W
+    N1: N1
+    N2: N2
+    N3: N3
+    REM: REM
+  exclude: []
+  log_exclusions: false
+
+split_policy:
+  subject_id_from: filename_stem
+  group_by:
+    - subject_id
+  keep_nights_together: true
+  leakage_checks: true
+
+fixture:
+  default_pairs: 0
+  description: "Synthetic fixture NPZ files"
+
+data_paths:
+  raw_dir: "data/fixtures"
+  fixture_dir: "data/fixtures"
