@@ -1,0 +1,77 @@
+[build-system]
+requires = ["hatchling>=1.21.1"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sleep-stager"
+version = "0.1.0"
+description = "Clinically interpretable sleep staging pipeline with calibration and HMM smoothing"
+authors = [{ name = "Sleep Staging AI", email = "team@example.com" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "pandas>=2.1",
+  "pyarrow>=14",
+  "scikit-learn>=1.3",
+  "torch>=2.1",
+  "torchvision>=0.16",
+  "torchaudio>=2.1",
+  "matplotlib>=3.8",
+  "seaborn>=0.13",
+  "rich>=13.7",
+  "typer>=0.9",
+  "pydantic>=2.5",
+  "hydra-core>=1.3",
+  "mne>=1.6",
+  "h5py>=3.10",
+  "pyyaml>=6.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+  "pytest-mock>=3.12",
+  "black>=23.12",
+  "isort>=5.13",
+  "mypy>=1.7",
+  "types-PyYAML>=6.0.12",
+  "types-requests>=2.31"
+]
+
+[project.scripts]
+sleep-stager = "sleep_stager.cli.main:app"
+sleepstage = "sleep_stager.cli.main:app"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q"
+markers = [
+  "smoke: marks slow smoke tests that exercise the CLI",
+]
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+warn_return_any = true
+strict_optional = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+branch = true
+source = ["sleep_stager"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

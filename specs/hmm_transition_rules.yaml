@@ -1,0 +1,31 @@
+version: 1
+
+classes:
+  - W
+  - N1
+  - N2
+  - N3
+  - REM
+
+transition_prior:
+  type: from_data_with_prior
+  prior_weight: 0.2
+  min_transition_prob: 0.000001
+
+decoding:
+  algorithm: viterbi
+  use_log_probs: true
+
+implausible_transitions:
+  - from: N3
+    to: REM
+  - from: REM
+    to: N3
+  - from: W
+    to: N3
+  - from: N3
+    to: W
+
+reporting:
+  count_on: predicted_labels
+  compare_raw_vs_hmm: true

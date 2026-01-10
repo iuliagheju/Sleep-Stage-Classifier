@@ -1,0 +1,131 @@
+version: 1
+
+metrics_json:
+  fields:
+    run_id: string
+    git_commit: string
+    git_dirty: boolean
+    config_hash: string
+    spec_hash: string
+    timestamp_utc: string
+    dataset_name: string
+    dataset_version: string
+    dataset_subset: string
+    channel_config: string
+    split_protocol: string
+    protocol_version: integer
+    fold_id: string_or_int_or_null
+    model_name: string
+    model_version: string
+    param_count: integer
+    train_time_sec: float
+    infer_epochs_per_sec: float
+    environment:
+      seeds:
+        numpy: integer
+        torch: integer
+        pythonhashseed: string
+      hardware:
+        platform: string
+        python_version: string
+        cpu_count: integer
+        cuda_available: boolean
+        cuda_device: string_or_int_or_null
+      packages:
+        numpy: string
+        scipy: string
+        pandas: string
+        scikit-learn: string
+        torch: string
+        mne: string
+    features:
+      use_bandpower: boolean
+      use_time_domain: boolean
+      use_bandpower_ratios: boolean
+      use_spectral_entropy: boolean
+      feature_dim: integer
+      feature_names: list_string
+    metrics:
+      macro_f1: float
+      accuracy: float
+      balanced_accuracy: float
+      per_class_f1:
+        W: float
+        N1: float
+        N2: float
+        N3: float
+        REM: float
+      confusion_matrix:
+        class_order:
+          - W
+          - N1
+          - N2
+          - N3
+          - REM
+        counts: matrix_int
+    calibration:
+      ece: float
+      brier: float
+      nll: float
+      n_bins: integer
+      calibration_method: string
+      ece_before: float
+      brier_before: float
+      nll_before: float
+    temporal:
+      implausible_transition_rate_raw: float
+      implausible_transition_rate_hmm: float
+      stage_changes_per_hour_raw: float
+      stage_changes_per_hour_hmm: float
+    gates:
+      passed: boolean
+      errors: list_string
+    artifacts:
+      per_subject_csv: path
+      confusion_matrix_png: path
+      confusion_matrix_json: path
+      reliability_diagram_png: path
+      calibration_json: path
+      predictions_raw_probs: path
+      predictions_raw_pred_labels: path
+      predictions_hmm_pred_labels: path
+      model_checkpoint: path
+      config_snapshot: path
+
+per_subject_csv:
+  columns:
+    - subject_id
+    - n_epochs
+    - macro_f1
+    - accuracy
+    - balanced_accuracy
+    - f1_W
+    - f1_N1
+    - f1_N2
+    - f1_N3
+    - f1_REM
+    - ece
+    - brier
+    - nll
+    - implausible_transition_rate_raw
+    - implausible_transition_rate_hmm
+
+predictions:
+  raw_probs:
+    format: npz_or_parquet
+    fields:
+      - subject_id
+      - epoch_index
+      - probs_5
+  raw_pred_labels:
+    format: csv
+    columns:
+      - subject_id
+      - epoch_index
+      - label
+  hmm_pred_labels:
+    format: csv
+    columns:
+      - subject_id
+      - epoch_index
+      - label

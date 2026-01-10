@@ -1,0 +1,69 @@
+protocol_version: 1
+random_seed: 1337
+
+headline_protocol:
+  name: loso
+  unit: subject
+  keep_nights_together: true
+
+secondary_protocol:
+  name: kfold_subject
+  k: 5
+  keep_nights_together: true
+
+calibration_split:
+  by: subject
+  train_ratio: 0.8
+  calibration_ratio: 0.2
+
+metrics:
+  classes:
+    - W
+    - N1
+    - N2
+    - N3
+    - REM
+  primary: macro_f1
+  macro_average: unweighted
+  calibration:
+    ece_bins: 15
+    brier: true
+    nll: true
+
+reproducibility:
+  full_run_tolerance:
+    macro_f1: 0.005
+    ece: 0.005
+  gpu_fallback_tolerance:
+    macro_f1: 0.01
+    ece: 0.01
+
+efficiency_budgets:
+  smoke:
+    unit_tests_max_sec: 60
+    smoke_run_max_min: 10
+    baseline_train_max_min: 2
+    deep_one_epoch_max_min: 8
+    postprocess_max_min: 2
+  inference:
+    cpu_epochs_per_sec_min: 200
+
+gates:
+  hmm:
+    macro_f1_drop_max: 0.01
+    implausible_transition_reduction_min: 0.2
+  calibration:
+    ece_after_max: 0.05
+    ece_before_max: 0.10
+    brier_after_max: 0.55
+  performance:
+    baseline_macro_f1_min: 0.65
+    cnn:
+      macro_f1_min_absolute: 0.68
+      macro_f1_min_over_baseline: 0.03
+    cnn_bilstm:
+      macro_f1_min_absolute: 0.70
+      macro_f1_min_over_baseline: 0.05
+    attention:
+      macro_f1_min_absolute: 0.70
+      macro_f1_min_over_baseline: 0.05

@@ -1,0 +1,66 @@
+defaults:
+  - _self_
+
+data:
+  dir: ${oc.env:DATA_DIR, data/fixtures}
+  channel: Fpz-Cz
+  epoch_length_sec: 30
+  sample_rate: 100
+preprocess:
+  center: true
+  scale: true
+features:
+  use_bandpower: true
+  use_time_domain: true
+  use_bandpower_ratios: true
+  use_spectral_entropy: true
+bandpower:
+  sample_rate: 100
+model:
+  family: classical
+  classical:
+    model_type: logreg
+    max_iter: 200
+    C: 1.0
+    svm_kernel: rbf
+    n_estimators: 200
+    max_depth: null
+    random_state: 42
+  cnn:
+    epochs: 1
+    batch_size: 8
+    lr: 0.001
+  seq:
+    epochs: 1
+    batch_size: 4
+    lr: 0.001
+    window_size: 5
+    embed_dim: 64
+    hidden_size: 64
+  attention:
+    epochs: 1
+    batch_size: 4
+    lr: 0.001
+    window_size: 7
+    embed_dim: 64
+    hidden_size: 64
+calibration:
+  enabled: true
+  temperature:
+    lr: 0.05
+    max_steps: 25
+hmm:
+  enabled: true
+  transition_bias: 0.85
+  min_prob: 1.0e-6
+evaluation:
+  ece_bins: 15
+  hmm_guardrail: 0.01
+  enforce_gates: true
+  baseline_macro_f1: null
+  allow_single_subject: false
+  compute_baseline: false
+  protocol: loso
+  fold_index: 0
+artifacts:
+  root: artifacts

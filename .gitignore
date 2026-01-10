@@ -1,0 +1,26 @@
+# python
+__pycache__/
+pycache/
+*.py[cod]
+*.pyc
+*.pyo
+*.swp
+.venv/
+.env
+.venv*/
+
+# data + artifacts
+data/
+artifacts/
+runs/
+logs/
+
+# tooling
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+.ipynb_checkpoints/
+
+# editors
+.vscode/
+*.code-workspace

@@ -1,0 +1,6 @@
+version: 1
+
+param_caps:
+  cnn: 1000000
+  seq: 3000000
+  attention: 5000000
