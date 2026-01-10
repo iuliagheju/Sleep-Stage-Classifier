@@ -13,6 +13,7 @@ metrics_json:
     dataset_subset: string
     channel_config: string
     split_protocol: string
+    held_out_subject_id: string_or_int_or_null
     protocol_version: integer
     fold_id: string_or_int_or_null
     model_name: string
@@ -49,6 +50,7 @@ metrics_json:
       macro_f1: float
       accuracy: float
       balanced_accuracy: float
+      hmm_macro_f1: float
       per_class_f1:
         W: float
         N1: float
@@ -56,6 +58,14 @@ metrics_json:
         N3: float
         REM: float
       confusion_matrix:
+        class_order:
+          - W
+          - N1
+          - N2
+          - N3
+          - REM
+        counts: matrix_int
+      confusion_matrix_hmm:
         class_order:
           - W
           - N1
@@ -82,19 +92,26 @@ metrics_json:
       errors: list_string
     artifacts:
       per_subject_csv: path
+      split_manifest_json: path
       confusion_matrix_png: path
       confusion_matrix_json: path
+      confusion_matrix_hmm_png: path
+      confusion_matrix_hmm_json: path
       reliability_diagram_png: path
       calibration_json: path
       predictions_raw_probs: path
       predictions_raw_pred_labels: path
       predictions_hmm_pred_labels: path
+      hmm_transition_matrix_json: path
       model_checkpoint: path
       config_snapshot: path
+      dataset_spec_yaml: path
+      evaluation_spec_yaml: path
 
 per_subject_csv:
   columns:
     - subject_id
+    - held_out_subject_id
     - n_epochs
     - macro_f1
     - accuracy

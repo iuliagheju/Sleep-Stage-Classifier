@@ -24,6 +24,7 @@ from ..data.splits import (
     SplitConfig,
     dump_splits,
     subject_wise_kfold_splits,
+    subject_wise_loso_split,
     subject_wise_split,
     unique_subject_ids,
 )
@@ -57,7 +58,8 @@ from ..features.bandpower import BandConfig
 from ..features.transforms import FeatureConfig, build_feature_matrix, build_feature_names
 from ..models import calibration as calib
 from ..models import attention, classical, cnn, seq
-from ..postprocess.hmm import HMMConfig, smooth_sequence
+from ..models.inference import collect_probs
+from ..postprocess.hmm import HMMConfig, build_transition_matrix, smooth_sequence
 from ..utils.logging import configure_logging
 from ..utils.random import seed_everything
 from ..utils.system import collect_hardware_summary, collect_package_versions
@@ -132,6 +134,25 @@ def _hash_payload(payload: dict) -> str:
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
+def _dataset_tag(data_dir: Path) -> str:
+    lowered = str(data_dir).lower()
+    if "fixture" in lowered:
+        return "fixtures"
+    if "sleep-cassette" in lowered or "sleep-casette" in lowered:
+        return "sleep-cassette"
+    if "sleep-telemetry" in lowered:
+        return "sleep-telemetry"
+    return "unknown"
+
+
+def _subject_sessions(subjects: Iterable) -> Dict[str, List[str]]:
+    sessions: Dict[str, set] = {}
+    for subject in subjects:
+        session_id = getattr(subject, "session_id", None) or subject.subject_id
+        sessions.setdefault(subject.subject_id, set()).add(str(session_id))
+    return {subject_id: sorted(values) for subject_id, values in sessions.items()}
+
+
 def _mask(subject_ids: np.ndarray, subset: Iterable[str]) -> np.ndarray:
     return np.isin(subject_ids, list(subset))
 
@@ -139,20 +160,9 @@ def _mask(subject_ids: np.ndarray, subset: Iterable[str]) -> np.ndarray:
 def _collect_deep_probs(
     model, signals: np.ndarray, batch_size: int = 64
 ) -> Tuple[np.ndarray, np.ndarray]:
-    model.eval()
-    import torch
-
-    if signals.shape[0] == 0:
-        return np.array([]), np.zeros((0, 0))
-    all_probs = []
-    with torch.no_grad():
-        for start in range(0, signals.shape[0], batch_size):
-            batch = signals[start : start + batch_size]
-            tensor = torch.tensor(batch, dtype=torch.float32)
-            logits = model(tensor)
-            probs = torch.softmax(logits, dim=-1).cpu().numpy()
-            all_probs.append(probs)
-    probs = np.concatenate(all_probs, axis=0)
+    probs = collect_probs(model, signals, batch_size=batch_size)
+    if probs.size == 0:
+        return np.array([]), probs
     preds = np.argmax(probs, axis=1)
     return preds, probs
 
@@ -191,6 +201,7 @@ def train(
     hmm_spec = _load_yaml(ROOT / "specs" / "hmm_transition_rules.yaml")
     artifact_schema = _load_yaml(ROOT / "specs" / "artifacts_schema.yaml")
     model_limits = _load_yaml(ROOT / "specs" / "model_limits.yaml")
+    gates_spec = _load_yaml(ROOT / "specs" / "gates.yaml")
     spec_hash = _hash_payload(
         {
             "dataset_spec": dataset_spec,
@@ -198,6 +209,7 @@ def train(
             "hmm_transition_rules": hmm_spec,
             "artifacts_schema": artifact_schema,
             "model_limits": model_limits,
+            "gates": gates_spec,
         }
     )
 
@@ -205,6 +217,12 @@ def train(
     artifact_root = Path(cfg.artifacts.root)
     run_dir = artifact_root / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
+    dataset_spec_path = ROOT / "specs" / "dataset_sleep_edfx_st.yaml"
+    evaluation_spec_path = ROOT / "specs" / "evaluation.yaml"
+    dataset_spec_copy = run_dir / dataset_spec_path.name
+    evaluation_spec_copy = run_dir / evaluation_spec_path.name
+    dataset_spec_copy.write_text(dataset_spec_path.read_text())
+    evaluation_spec_copy.write_text(evaluation_spec_path.read_text())
     logger = configure_logging(run_dir / "logs")
     git_commit = _git_sha()
     git_dirty = _git_dirty()
@@ -227,6 +245,7 @@ def train(
         epoch_length_sec=int(getattr(cfg.data, "epoch_length_sec", 30)),
         sample_rate=int(getattr(cfg.data, "sample_rate", 100)),
     )
+    dataset_tag = _dataset_tag(data_cfg.data_dir)
     subjects = list(load_subjects(data_cfg))
     pre_cfg = PreprocessConfig(**OmegaConf.to_container(cfg.preprocess, resolve=True))
     for subject in subjects:
@@ -248,6 +267,7 @@ def train(
     protocol_override = getattr(cfg.evaluation, "protocol", None)
     protocol = _resolve_protocol(eval_spec, protocol_override)
     fold_id = None
+    held_out_subject_id = None
     split_protocol_name = protocol
 
     if len(subject_ids_all) < 2:
@@ -256,6 +276,8 @@ def train(
             splits = {"train": subject_ids_all, "val": [], "test": subject_ids_all}
             if protocol in K_FOLD_PROTOCOLS:
                 fold_id = 0
+            if protocol == "loso" and subject_ids_all:
+                held_out_subject_id = subject_ids_all[0]
         else:
             raise ValueError(
                 "Need at least 2 subjects for subject-wise evaluation. Set evaluation.allow_single_subject=true to override."
@@ -271,14 +293,25 @@ def train(
         else:
             splits = subject_wise_split(subject_ids_all, split_cfg)
             if protocol == "loso":
-                test_subject = subject_ids_all[-1]
-                train_val_subjects = subject_ids_all[:-1]
+                held_out_override = getattr(cfg.evaluation, "held_out_subject_id", None)
                 cal_ratio = float(eval_spec.get("calibration_split", {}).get("calibration_ratio", 0.2))
-                val_count = max(1, int(len(train_val_subjects) * cal_ratio)) if len(train_val_subjects) > 1 else 0
-                val_subjects = train_val_subjects[-val_count:] if val_count > 0 else []
-                train_subjects = train_val_subjects[:-val_count] if val_count > 0 else train_val_subjects
-                splits = {"train": train_subjects, "val": val_subjects, "test": [test_subject]}
+                splits, held_out_subject_id = subject_wise_loso_split(
+                    subject_ids_all,
+                    cal_ratio,
+                    split_cfg.seed,
+                    held_out_subject_id=held_out_override,
+                )
     dump_splits(splits, run_dir / "splits.json")
+    split_manifest = {
+        "protocol": split_protocol_name,
+        "held_out_subject_id": held_out_subject_id,
+        "train_subject_ids": sorted(splits.get("train", [])),
+        "val_subject_ids": sorted(splits.get("val", [])),
+        "test_subject_ids": sorted(splits.get("test", [])),
+        "subject_sessions": _subject_sessions(subjects),
+    }
+    split_manifest_path = run_dir / "split_manifest.json"
+    split_manifest_path.write_text(json.dumps(split_manifest, indent=2))
 
     train_mask = _mask(subject_index, splits["train"])
     val_mask = _mask(subject_index, splits["val"])
@@ -415,14 +448,32 @@ def train(
     per_class = per_class_f1(np.array(labels[test_mask_raw]), test_labels, stages)
     logger.info(f"Test macro F1 (pre-HMM): {base_metrics['macro_f1']:.3f}")
 
+    hmm_states = list(hmm_spec.get("classes", stages))
+    if set(hmm_states) != set(stages):
+        raise ValueError("HMM classes must match stage labels for smoothing.")
     transition_prior = hmm_spec.get("transition_prior", {})
     prior_weight = float(transition_prior.get("prior_weight", 0.0))
     min_transition_prob = float(transition_prior.get("min_transition_prob", cfg.hmm.min_prob))
     empirical_transition = estimate_transition_matrix(
         labels[train_mask_raw].tolist(),
-        stages,
+        hmm_states,
         prior_weight=prior_weight,
         min_prob=min_transition_prob,
+    )
+    hmm_cfg = HMMConfig(
+        states=hmm_states,
+        transition_bias=float(cfg.hmm.transition_bias),
+        min_prob=float(cfg.hmm.min_prob),
+        prior_weight=prior_weight,
+    )
+    transition_matrix = build_transition_matrix(
+        hmm_cfg,
+        empirical=empirical_transition,
+        min_transition_prob=min_transition_prob,
+    )
+    hmm_transition_path = run_dir / "hmm_transition_matrix.json"
+    hmm_transition_path.write_text(
+        json.dumps({"class_order": hmm_states, "matrix": transition_matrix.tolist()}, indent=2)
     )
 
     implausible_rules = [
@@ -433,17 +484,11 @@ def train(
     hmm_metrics = base_metrics
     smoothed = test_labels.tolist()
     if cfg.hmm.enabled:
-        hmm_cfg = HMMConfig(
-            states=stages,
-            transition_bias=float(cfg.hmm.transition_bias),
-            min_prob=float(cfg.hmm.min_prob),
-            prior_weight=prior_weight,
-        )
         smoothed = smooth_sequence(
             test_probs,
             label_to_idx,
             hmm_cfg,
-            transition=empirical_transition,
+            transition=transition_matrix,
         )
         hmm_metrics = compute_classification_metrics(
             np.array(labels[test_mask_raw]),
@@ -451,15 +496,6 @@ def train(
             metric_cfg,
         )
         implausible_hmm = implausible_transition_rate(smoothed, implausible_rules)
-        drop = base_metrics["macro_f1"] - hmm_metrics["macro_f1"]
-        reduction = implausible_raw - implausible_hmm
-        guard_drop = float(eval_spec.get("gates", {}).get("hmm", {}).get("macro_f1_drop_max", cfg.evaluation.hmm_guardrail))
-        min_reduction = float(eval_spec.get("gates", {}).get("hmm", {}).get("implausible_transition_reduction_min", 0.0))
-        if drop > guard_drop or reduction < min_reduction:
-            logger.warning("HMM guardrail triggered; reverting to pre-HMM predictions")
-            hmm_metrics = base_metrics
-            smoothed = test_labels.tolist()
-            implausible_hmm = implausible_raw
     else:
         implausible_hmm = implausible_raw
 
@@ -484,6 +520,7 @@ def train(
         per_label_f1 = per_class_f1(y_true_sub, y_pred_sub, stages)
         row = {
             "subject_id": subj,
+            "held_out_subject_id": held_out_subject_id or "",
             "n_epochs": n_epochs,
             "macro_f1": metrics_row.get("macro_f1"),
             "accuracy": metrics_row.get("accuracy"),
@@ -523,9 +560,16 @@ def train(
     dump_calibration_metrics(calibration_metrics, run_dir / "calibration.json")
     reliability_diagram(y_true_idx, test_probs, calib_cfg, run_dir / "calibration.png")
 
-    cm = confusion_matrix_artifacts(np.array(labels[test_mask_raw]), test_labels, stages)
-    _dump_confusion_png(cm["matrix"], cm["labels"], run_dir / "confusion_matrix.png")
-    (run_dir / "confusion_matrix.json").write_text(json.dumps({"labels": cm["labels"], "matrix": cm["matrix"].tolist()}, indent=2))
+    cm_raw = confusion_matrix_artifacts(np.array(labels[test_mask_raw]), test_labels, stages)
+    cm_hmm = confusion_matrix_artifacts(np.array(labels[test_mask_raw]), np.array(smoothed), stages)
+    _dump_confusion_png(cm_raw["matrix"], cm_raw["labels"], run_dir / "confusion_matrix.png")
+    _dump_confusion_png(cm_hmm["matrix"], cm_hmm["labels"], run_dir / "confusion_matrix_hmm.png")
+    (run_dir / "confusion_matrix.json").write_text(
+        json.dumps({"labels": cm_raw["labels"], "matrix": cm_raw["matrix"].tolist()}, indent=2)
+    )
+    (run_dir / "confusion_matrix_hmm.json").write_text(
+        json.dumps({"labels": cm_hmm["labels"], "matrix": cm_hmm["matrix"].tolist()}, indent=2)
+    )
 
     pred_payload = {
         "subject_id": subject_index[test_mask],
@@ -590,6 +634,7 @@ def train(
         "dataset_subset": dataset_spec.get("dataset", {}).get("subset", "unknown"),
         "channel_config": dataset_spec.get("signals", {}).get("eeg_channels", {}).get("default", ""),
         "split_protocol": split_protocol_name,
+        "held_out_subject_id": held_out_subject_id,
         "protocol_version": eval_spec.get("protocol_version", 1),
         "fold_id": fold_id,
         "model_name": model_family,
@@ -620,7 +665,11 @@ def train(
             "per_class_f1": per_class,
             "confusion_matrix": {
                 "class_order": stages,
-                "counts": cm["matrix"].tolist(),
+                "counts": cm_raw["matrix"].tolist(),
+            },
+            "confusion_matrix_hmm": {
+                "class_order": stages,
+                "counts": cm_hmm["matrix"].tolist(),
             },
         },
         "calibration": {
@@ -641,23 +690,37 @@ def train(
             "model_type": baseline_cfg.model_type,
             **baseline_metrics,
         }
-    gate_errors = evaluate_gates(metrics_payload, eval_spec, model_limits, baseline_macro_f1)
+    gate_errors = evaluate_gates(
+        metrics_payload,
+        gates_spec,
+        model_limits,
+        baseline_macro_f1,
+        dataset_tag=dataset_tag,
+        efficiency_budgets=eval_spec.get("efficiency_budgets", {}),
+    )
     metrics_payload["gates"] = {"passed": not gate_errors, "errors": gate_errors}
-    if getattr(cfg.evaluation, "enforce_gates", False) and gate_errors:
-        raise ValueError("Evaluation gates failed:\n" + "\n".join(gate_errors))
+    hmm_gate_errors = [err for err in gate_errors if err.startswith("hmm.")]
+    if hmm_gate_errors:
+        logger.warning("HMM guardrail triggered:\n" + "\n".join(hmm_gate_errors))
     dump_metrics(metrics_payload, run_dir / "metrics.json")
 
     metrics_payload["artifacts"] = {
         "per_subject_csv": str(per_subject_path),
+        "split_manifest_json": str(split_manifest_path),
         "confusion_matrix_png": str(run_dir / "confusion_matrix.png"),
         "confusion_matrix_json": str(run_dir / "confusion_matrix.json"),
+        "confusion_matrix_hmm_png": str(run_dir / "confusion_matrix_hmm.png"),
+        "confusion_matrix_hmm_json": str(run_dir / "confusion_matrix_hmm.json"),
         "reliability_diagram_png": str(run_dir / "calibration.png"),
         "calibration_json": str(run_dir / "calibration.json"),
         "predictions_raw_probs": str(probs_path),
         "predictions_raw_pred_labels": str(raw_labels_path),
         "predictions_hmm_pred_labels": str(hmm_labels_path),
+        "hmm_transition_matrix_json": str(hmm_transition_path),
         "model_checkpoint": str(model_checkpoint) if model_checkpoint else "",
         "config_snapshot": str(run_dir / "config_snapshot.yaml"),
+        "dataset_spec_yaml": str(dataset_spec_copy),
+        "evaluation_spec_yaml": str(evaluation_spec_copy),
     }
     schema_fields = artifact_schema.get("metrics_json", {}).get("fields", {})
     if schema_fields:
@@ -668,6 +731,9 @@ def train(
 
     with (run_dir / "config_snapshot.yaml").open("w") as fh:
         yaml.safe_dump(config_dump, fh)
+
+    if getattr(cfg.evaluation, "enforce_gates", False) and gate_errors:
+        raise ValueError("Evaluation gates failed:\n" + "\n".join(gate_errors))
 
     logger.info(f"Run artifacts written to {run_dir}")
 

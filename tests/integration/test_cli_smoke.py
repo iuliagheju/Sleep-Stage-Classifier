@@ -24,6 +24,7 @@ def test_cli_smoke(smoke_run):
         "metrics",
         "calibration",
         "temporal",
+        "held_out_subject_id",
         "gates",
         "environment",
         "features",
@@ -44,14 +45,20 @@ def test_cli_smoke(smoke_run):
     artifacts_paths = metrics["artifacts"]
     required_files = [
         "per_subject_csv",
+        "split_manifest_json",
         "confusion_matrix_png",
         "confusion_matrix_json",
+        "confusion_matrix_hmm_png",
+        "confusion_matrix_hmm_json",
         "reliability_diagram_png",
         "calibration_json",
         "predictions_raw_probs",
         "predictions_raw_pred_labels",
         "predictions_hmm_pred_labels",
+        "hmm_transition_matrix_json",
         "model_checkpoint",
+        "dataset_spec_yaml",
+        "evaluation_spec_yaml",
     ]
     for key in required_files:
         path = latest / Path(artifacts_paths[key]).name
@@ -61,6 +68,7 @@ def test_cli_smoke(smoke_run):
     per_subj = pd.read_csv(latest / Path(artifacts_paths["per_subject_csv"]).name)
     expected_cols = {
         "subject_id",
+        "held_out_subject_id",
         "n_epochs",
         "macro_f1",
         "accuracy",
@@ -132,6 +140,37 @@ def test_cli_eval(smoke_run):
     result = subprocess.run(cmd, cwd=repo_root, env=env, capture_output=True)
     assert result.returncode == 0
     assert (run_dir / "metrics_eval.json").exists()
+
+
+@pytest.mark.smoke
+def test_cli_compare_runs(smoke_run):
+    repo_root = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo_root)
+    runs_root = smoke_run["run_dir"].parent
+    cmd = [
+        sys.executable,
+        "-m",
+        "sleep_stager.cli.main",
+        "compare-runs",
+        "--runs-root",
+        str(runs_root),
+    ]
+    result = subprocess.run(cmd, cwd=repo_root, env=env, capture_output=True)
+    assert result.returncode == 0
+    report_dir = runs_root / "_comparison"
+    report_path = report_dir / "comparison.json"
+    csv_path = report_dir / "comparison.csv"
+    assert report_path.exists()
+    assert csv_path.exists()
+    payload = json.loads(report_path.read_text())
+    assert payload["run_count"] >= 1
+    row = payload["runs"][0]
+    assert "metrics" in row
+    assert "per_class_f1" in row
+    assert "calibration" in row
+    assert "temporal" in row
+    assert "efficiency" in row
 
 
 def test_cli_fetch_data_validate(tmp_path):
