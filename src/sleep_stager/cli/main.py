@@ -169,7 +169,13 @@ def train_loso(
             typer.echo(f"Skipping {subject_id} (existing run detected).")
             continue
         typer.echo(f"Running LOSO with held-out subject {subject_id}")
-        train_command(config_path=config_path, config_name=config_name, override=subject_overrides)
+        try:
+            train_command(config_path=config_path, config_name=config_name, override=subject_overrides)
+        except ValueError as exc:
+            if "Evaluation gates failed" in str(exc):
+                typer.echo(f"Gate failure for {subject_id}; continuing to next subject.")
+                continue
+            raise
 
 
 @app.command("make-fixture")
