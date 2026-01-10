@@ -214,6 +214,9 @@ def train(
     )
 
     run_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    held_out_override = getattr(cfg.evaluation, "held_out_subject_id", None)
+    if held_out_override:
+        run_id = f"{run_id}_{held_out_override}"
     artifact_root = Path(cfg.artifacts.root)
     run_dir = artifact_root / run_id
     run_dir.mkdir(parents=True, exist_ok=True)

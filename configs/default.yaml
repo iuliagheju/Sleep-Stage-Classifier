@@ -62,5 +62,6 @@ evaluation:
   compute_baseline: false
   protocol: loso
   fold_index: 0
+  held_out_subject_id: null
 artifacts:
   root: artifacts

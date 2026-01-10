@@ -65,6 +65,17 @@ def load_subjects(config: DataConfig) -> Iterable[SubjectRecord]:
     yield from load_edf_subjects(config)
 
 
+def list_subject_ids(data_dir: Path) -> List[str]:
+    npz_files = sorted(data_dir.glob("*.npz"))
+    if npz_files:
+        return [path.stem for path in npz_files]
+    from .raw import find_edf_pairs, resolve_sleep_edfx_dir
+
+    telemetry_dir = resolve_sleep_edfx_dir(data_dir)
+    pairs = find_edf_pairs(telemetry_dir)
+    return [subject_id for _psg, _hyp, subject_id, _night in pairs]
+
+
 CANONICAL_STAGES = ("W", "N1", "N2", "N3", "REM")
 
 
