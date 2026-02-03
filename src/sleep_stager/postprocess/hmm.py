@@ -57,13 +57,33 @@ def smooth_sequence(
     transition: np.ndarray | None = None,
     initial: np.ndarray | None = None,
 ) -> List[str]:
-    idx_to_label = {idx: label for label, idx in label_to_idx.items()}
-    transition_matrix = transition if transition is not None else build_transition_matrix(config)
-    initial_log = (
-        initial
-        if initial is not None
-        else np.log(np.ones(len(label_to_idx)) / len(label_to_idx))
-    )
-    log_probs = np.log(np.clip(probs, config.min_prob, 1.0))
+    state_order = list(config.states)
+    if not state_order:
+        return []
+    missing = [state for state in state_order if state not in label_to_idx]
+    if missing:
+        raise ValueError(f"Missing label indices for HMM states: {missing}")
+    col_indices = [label_to_idx[state] for state in state_order]
+    if probs.shape[1] <= max(col_indices):
+        raise ValueError("Probability columns do not align with label indices.")
+    aligned_probs = probs[:, col_indices]
+    idx_to_label = {idx: label for idx, label in enumerate(state_order)}
+    if transition is not None:
+        transition_matrix = np.array(transition, dtype=np.float64)
+        transition_matrix = np.clip(transition_matrix, config.min_prob, 1.0)
+        row_sums = transition_matrix.sum(axis=1, keepdims=True)
+        row_sums[row_sums == 0] = 1.0
+        transition_matrix = transition_matrix / row_sums
+    else:
+        transition_matrix = build_transition_matrix(config)
+    if transition_matrix.shape[0] != len(state_order):
+        raise ValueError("Transition matrix shape does not match HMM state order.")
+    if initial is not None:
+        if initial.shape[0] != len(state_order):
+            raise ValueError("Initial state distribution shape does not match HMM state order.")
+        initial_log = initial
+    else:
+        initial_log = np.log(np.ones(len(state_order)) / len(state_order))
+    log_probs = np.log(np.clip(aligned_probs, config.min_prob, 1.0))
     best_path = viterbi(log_probs, transition_matrix, initial_log)
     return [idx_to_label[idx] for idx in best_path]

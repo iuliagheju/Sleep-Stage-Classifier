@@ -10,6 +10,12 @@ def validate_metrics_schema(metrics: Dict[str, Any], schema: Dict[str, Any]) -> 
     return errors
 
 
+def validate_summary_schema(summary: Dict[str, Any], schema: Dict[str, Any]) -> List[str]:
+    errors: List[str] = []
+    _validate_value(summary, schema, "summary_json", errors)
+    return errors
+
+
 def _validate_value(value: Any, schema: Any, path: str, errors: List[str]) -> None:
     if isinstance(schema, dict):
         if not isinstance(value, dict):
@@ -25,6 +31,10 @@ def _validate_value(value: Any, schema: Any, path: str, errors: List[str]) -> No
     if isinstance(schema, list):
         if not isinstance(value, list):
             errors.append(f"{path}: expected list")
+            return
+        if len(schema) == 1 and isinstance(schema[0], dict):
+            for idx, item in enumerate(value):
+                _validate_value(item, schema[0], f"{path}[{idx}]", errors)
             return
         if schema and all(isinstance(item, (str, int, float, bool)) for item in schema):
             if len(value) != len(schema):

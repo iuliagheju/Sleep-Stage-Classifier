@@ -14,6 +14,7 @@ signals:
     default: "Fpz-Cz"
     optional:
       - "Pz-Oz"
+      - "Fpz-Cz+Pz-Oz"
   sampling_rate_hz: 100
   epoch_length_sec: 30
 

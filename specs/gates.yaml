@@ -1,0 +1,66 @@
+version: 1
+
+datasets:
+  sleep-telemetry:
+    performance:
+      classical:
+        macro_f1_min: 0.65
+      cnn:
+        macro_f1_min_absolute: 0.68
+        macro_f1_min_over_baseline: 0.03
+      seq:
+        macro_f1_min_absolute: 0.70
+        macro_f1_min_over_baseline: 0.05
+      attention:
+        macro_f1_min_absolute: 0.70
+        macro_f1_min_over_baseline: 0.05
+    calibration:
+      ece_after_max: 0.05
+      ece_before_max: 0.10
+      brier_after_max: 0.55
+      nll_after_max: 1.0
+    hmm:
+      macro_f1_drop_max: 0.01
+      implausible_transition_reduction_min: 0.20
+  sleep-cassette:
+    performance:
+      classical:
+        macro_f1_min: 0.65
+      cnn:
+        macro_f1_min_absolute: 0.68
+        macro_f1_min_over_baseline: 0.03
+      seq:
+        macro_f1_min_absolute: 0.70
+        macro_f1_min_over_baseline: 0.05
+      attention:
+        macro_f1_min_absolute: 0.70
+        macro_f1_min_over_baseline: 0.05
+    calibration:
+      ece_after_max: 0.05
+      ece_before_max: 0.10
+      brier_after_max: 0.55
+      nll_after_max: 1.0
+    hmm:
+      macro_f1_drop_max: 0.01
+      implausible_transition_reduction_min: 0.20
+  fixtures:
+    performance:
+      classical:
+        macro_f1_min: 0.65
+      cnn:
+        macro_f1_min_absolute: 0.68
+        macro_f1_min_over_baseline: 0.03
+      seq:
+        macro_f1_min_absolute: 0.70
+        macro_f1_min_over_baseline: 0.05
+      attention:
+        macro_f1_min_absolute: 0.70
+        macro_f1_min_over_baseline: 0.05
+    calibration:
+      ece_after_max: 0.05
+      ece_before_max: 0.10
+      brier_after_max: 0.55
+      nll_after_max: 1.0
+    hmm:
+      macro_f1_drop_max: 0.01
+      implausible_transition_reduction_min: 0.20

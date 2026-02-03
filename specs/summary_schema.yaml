@@ -1,0 +1,35 @@
+version: 1
+
+summary_json:
+  fields:
+    dataset_root: string
+    generated_utc: string
+    run_count: integer
+    run_ids: list_string
+    model_names: list_string
+    runs:
+      - run_id: string
+        model_name: string
+        macro_f1: float
+        accuracy: float
+        balanced_accuracy: float
+        git_commit: string
+        git_dirty: boolean
+        config_hash: string
+        spec_hash: string
+    aggregate:
+      macro_f1:
+        mean: float
+        std: float
+        min: float
+        max: float
+      accuracy:
+        mean: float
+        std: float
+        min: float
+        max: float
+      balanced_accuracy:
+        mean: float
+        std: float
+        min: float
+        max: float

@@ -6,20 +6,22 @@ from typing import Any, Dict, List
 
 def evaluate_gates(
     metrics: Dict[str, Any],
-    eval_spec: Dict[str, Any],
+    gates_spec: Dict[str, Any],
     model_limits: Dict[str, Any] | None = None,
     baseline_macro_f1: float | None = None,
+    dataset_tag: str | None = None,
+    efficiency_budgets: Dict[str, Any] | None = None,
 ) -> List[str]:
     errors: List[str] = []
     model_name = metrics.get("model_name", "")
     macro_f1 = float(metrics.get("metrics", {}).get("macro_f1", 0.0))
     hmm_macro_f1 = float(metrics.get("metrics", {}).get("hmm_macro_f1", macro_f1))
 
-    gates = eval_spec.get("gates", {}) if eval_spec else {}
+    gates = _resolve_gates(gates_spec, dataset_tag)
     _check_calibration(metrics, gates.get("calibration", {}), errors)
     _check_hmm(metrics, gates.get("hmm", {}), macro_f1, hmm_macro_f1, errors)
     _check_performance(metrics, gates.get("performance", {}), model_name, macro_f1, baseline_macro_f1, errors)
-    _check_efficiency(metrics, eval_spec.get("efficiency_budgets", {}), errors)
+    _check_efficiency(metrics, efficiency_budgets or {}, errors)
     _check_param_caps(metrics, model_limits, model_name, errors)
     return errors
 
@@ -37,6 +39,9 @@ def _check_calibration(metrics: Dict[str, Any], cal_gates: Dict[str, Any], error
         errors.append(f"calibration.ece_before {ece_before:.4f} > {cal_gates['ece_before_max']}")
     if "brier_after_max" in cal_gates and brier > float(cal_gates["brier_after_max"]):
         errors.append(f"calibration.brier {brier:.4f} > {cal_gates['brier_after_max']}")
+    nll = float(calib.get("nll", 0.0))
+    if "nll_after_max" in cal_gates and nll > float(cal_gates["nll_after_max"]):
+        errors.append(f"calibration.nll {nll:.4f} > {cal_gates['nll_after_max']}")
 
 
 def _check_hmm(
@@ -73,22 +78,18 @@ def _check_performance(
     if not perf_gates:
         return
     if model_name == "classical":
-        minimum = perf_gates.get("baseline_macro_f1_min")
+        minimum = perf_gates.get("classical", {}).get("macro_f1_min")
         if minimum is not None and macro_f1 < float(minimum):
-            errors.append(f"performance.baseline_macro_f1 {macro_f1:.4f} < {minimum}")
+            errors.append(f"performance.classical.macro_f1 {macro_f1:.4f} < {minimum}")
         return
     if model_name == "cnn":
         _check_model_thresholds(macro_f1, perf_gates.get("cnn", {}), baseline_macro_f1, "cnn", errors)
         return
     if model_name == "seq":
-        _check_model_thresholds(
-            macro_f1, perf_gates.get("cnn_bilstm", {}), baseline_macro_f1, "cnn_bilstm", errors
-        )
+        _check_model_thresholds(macro_f1, perf_gates.get("seq", {}), baseline_macro_f1, "seq", errors)
         return
     if model_name == "attention":
-        _check_model_thresholds(
-            macro_f1, perf_gates.get("attention", {}), baseline_macro_f1, "attention", errors
-        )
+        _check_model_thresholds(macro_f1, perf_gates.get("attention", {}), baseline_macro_f1, "attention", errors)
 
 
 def _check_model_thresholds(
@@ -136,3 +137,23 @@ def _check_param_caps(
         return
     if int(param_count) > int(cap):
         errors.append(f"model.param_count {param_count} > {cap}")
+
+
+def _resolve_gates(gates_spec: Dict[str, Any], dataset_tag: str | None) -> Dict[str, Any]:
+    if not gates_spec:
+        return {}
+    defaults = gates_spec.get("defaults", {})
+    datasets = gates_spec.get("datasets", {})
+    dataset_key = dataset_tag or "default"
+    dataset_gates = datasets.get(dataset_key, {})
+    return _merge_dicts(defaults, dataset_gates)
+
+
+def _merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_dicts(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
