@@ -66,7 +66,7 @@ from ..utils.system import collect_hardware_summary, collect_package_versions
 
 ROOT = Path(__file__).resolve().parents[3]
 app = typer.Typer(add_completion=False)
-ALLOWED_PROTOCOLS = {"loso", "kfold", "kfold_subject", "kfold-subject"}
+ALLOWED_PROTOCOLS = {"loso", "kfold", "kfold_subject", "kfold-subject", "holdout"}
 K_FOLD_PROTOCOLS = {"kfold", "kfold_subject", "kfold-subject"}
 
 
@@ -298,6 +298,15 @@ def train(
     assert np.array_equal(subject_index, subject_index_raw)
 
     split_cfg = SplitConfig()
+    split_train_ratio = getattr(cfg.evaluation, "train_ratio", None)
+    split_val_ratio = getattr(cfg.evaluation, "val_ratio", None)
+    split_seed = getattr(cfg.evaluation, "split_seed", None)
+    if split_train_ratio is not None:
+        split_cfg.train_ratio = float(split_train_ratio)
+    if split_val_ratio is not None:
+        split_cfg.val_ratio = float(split_val_ratio)
+    if split_seed is not None:
+        split_cfg.seed = int(split_seed)
     subject_ids_all = sorted(unique_subject_ids([sub.subject_id for sub in subjects]))
     allow_single = bool(getattr(cfg.evaluation, "allow_single_subject", False))
     protocol_override = getattr(cfg.evaluation, "protocol", None)
