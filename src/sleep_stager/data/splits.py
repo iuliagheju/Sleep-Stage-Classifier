@@ -31,7 +31,10 @@ def subject_wise_split(subject_ids: List[str], config: SplitConfig) -> Dict[str,
     if n == 0:
         return {"train": [], "val": [], "test": []}
     train_count = max(1, int(n * config.train_ratio))
-    val_count = max(1, int(n * config.val_ratio)) if n >= 3 else max(0, n - train_count - 1)
+    if n >= 3:
+        val_count = max(1, int(n * config.val_ratio)) if config.val_ratio > 0 else 0
+    else:
+        val_count = max(0, n - train_count - 1)
     remaining = n - train_count - val_count
     test_count = max(1 if n >= 3 else remaining, remaining)
     # adjust totals if we over-allocated
@@ -134,3 +137,4 @@ def unique_subject_ids(subject_ids: Iterable[str]) -> List[str]:
 def dump_splits(splits: Dict[str, List[str]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(splits, indent=2))
+

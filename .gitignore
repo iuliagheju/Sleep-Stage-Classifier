@@ -24,3 +24,6 @@ logs/
 # editors
 .vscode/
 *.code-workspace
+
+# local writing files
+thesis.tex

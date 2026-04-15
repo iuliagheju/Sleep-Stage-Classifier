@@ -9,6 +9,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
+from ..utils.progress import TrainingProgressTracker
+
 
 class ContextWindowDataset(Dataset):
     def __init__(
@@ -118,6 +120,7 @@ def train_model(
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
     criterion = nn.CrossEntropyLoss()
     history: Dict[str, float] = {}
+    tracker = TrainingProgressTracker(total_steps=config.epochs, label="attention")
     for epoch in range(config.epochs):
         model.train()
         running = 0.0
@@ -130,7 +133,9 @@ def train_model(
             loss.backward()
             optimizer.step()
             running += loss.item() * batch_x.size(0)
-        history[f"epoch_{epoch}_loss"] = running / len(dataset)
+        epoch_loss = running / len(dataset)
+        history[f"epoch_{epoch}_loss"] = epoch_loss
+        print(tracker.message(epoch + 1, detail=f"loss={epoch_loss:.4f}"), flush=True)
     return model, history
 
 

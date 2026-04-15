@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "sleep-stager"
 version = "0.1.0"
 description = "Clinically interpretable sleep staging pipeline with calibration and HMM smoothing"
-authors = [{ name = "Sleep Staging", email = "team@example.com" }]
+authors = [{ name = "Sleep Staging", email = "iulia.gheju00@e-uvt.ro" }]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

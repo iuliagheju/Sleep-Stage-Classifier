@@ -34,7 +34,6 @@ def build_model(config: ClassicalConfig) -> Any:
                     LogisticRegression(
                         max_iter=config.max_iter,
                         C=config.C,
-                        multi_class="multinomial",
                         class_weight="balanced",
                         random_state=config.random_state,
                     ),
@@ -81,3 +80,4 @@ def predict(model: Any, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     probs = model.predict_proba(X)
     preds = model.classes_[np.argmax(probs, axis=1)]
     return preds, probs
+

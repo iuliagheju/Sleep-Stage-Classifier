@@ -1,6 +1,6 @@
 # Sleep Stager
 
-A test-first, spec-driven pipeline for classifying 30 s EEG epochs into W/N1/N2/N3/REM with calibrated probabilities and HMM-based temporal smoothing. The repository operationalizes the requirements documented in `specifications.ipynb` and `docs/evaluation_spec.md`.
+A test-first, spec-driven pipeline for classifying 30 s EEG epochs into W/N1/N2/N3/REM with calibrated probabilities and HMM-based temporal smoothing. The repository operationalizes the requirements documented in `requirements.txt` and `docs/evaluation_spec.md`.
 
 ## Highlights
 - Subject-wise data splits, deterministic seeds, and artifact logging for every run.
