@@ -14,6 +14,8 @@ data/
 artifacts/
 runs/
 logs/
+hypnograms/
+compared_hypnograms/
 
 # tooling
 .mypy_cache/
@@ -27,3 +29,7 @@ logs/
 
 # local writing files
 thesis.tex
+mybib.bib
+presentation.md
+presentation2.md
+speech.md
