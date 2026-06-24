@@ -99,30 +99,6 @@ def subject_wise_kfold_splits(
     return splits
 
 
-def subject_wise_loso_split(
-    subject_ids: Iterable[str],
-    val_ratio: float,
-    seed: int,
-    held_out_subject_id: str | None = None,
-) -> Tuple[Dict[str, List[str]], str]:
-    subjects = unique_subject_ids(subject_ids)
-    if len(subjects) < 2:
-        raise ValueError("LOSO requires at least 2 subjects")
-    if held_out_subject_id is not None:
-        if held_out_subject_id not in subjects:
-            raise ValueError(f"Held-out subject '{held_out_subject_id}' not in dataset")
-        test_subject = held_out_subject_id
-        train_val_subjects = [sid for sid in subjects if sid != held_out_subject_id]
-    else:
-        test_subject = subjects[-1]
-        train_val_subjects = subjects[:-1]
-    val_count = max(1, int(len(train_val_subjects) * val_ratio)) if len(train_val_subjects) > 1 else 0
-    val_subjects = train_val_subjects[-val_count:] if val_count > 0 else []
-    train_subjects = train_val_subjects[:-val_count] if val_count > 0 else train_val_subjects
-    splits = {"train": train_subjects, "val": val_subjects, "test": [test_subject]}
-    return splits, test_subject
-
-
 def unique_subject_ids(subject_ids: Iterable[str]) -> List[str]:
     seen = set()
     unique: List[str] = []

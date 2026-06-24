@@ -24,7 +24,6 @@ from ..data.splits import (
     SplitConfig,
     dump_splits,
     subject_wise_kfold_splits,
-    subject_wise_loso_split,
     subject_wise_split,
     unique_subject_ids,
 )
@@ -66,7 +65,7 @@ from ..utils.system import collect_hardware_summary, collect_package_versions
 
 ROOT = Path(__file__).resolve().parents[3]
 app = typer.Typer(add_completion=False)
-ALLOWED_PROTOCOLS = {"loso", "kfold", "kfold_subject", "kfold-subject", "holdout"}
+ALLOWED_PROTOCOLS = {"kfold", "kfold_subject", "kfold-subject", "holdout"}
 K_FOLD_PROTOCOLS = {"kfold", "kfold_subject", "kfold-subject"}
 
 
@@ -88,9 +87,9 @@ def _resolve_protocol(eval_spec: dict, protocol_override: str | None) -> str:
         if protocol == "secondary":
             protocol = str(eval_spec.get("secondary_protocol", {}).get("name", "kfold_subject")).lower()
         if protocol == "headline":
-            protocol = str(eval_spec.get("headline_protocol", {}).get("name", "loso")).lower()
+            protocol = str(eval_spec.get("headline_protocol", {}).get("name", "holdout")).lower()
     else:
-        protocol = str(eval_spec.get("headline_protocol", {}).get("name", "loso")).lower()
+        protocol = str(eval_spec.get("headline_protocol", {}).get("name", "holdout")).lower()
     if protocol not in ALLOWED_PROTOCOLS:
         allowed = ", ".join(sorted(ALLOWED_PROTOCOLS))
         raise ValueError(f"Unsupported evaluation.protocol '{protocol}'. Allowed: {allowed}")
@@ -321,8 +320,6 @@ def train(
             splits = {"train": subject_ids_all, "val": [], "test": subject_ids_all}
             if protocol in K_FOLD_PROTOCOLS:
                 fold_id = 0
-            if protocol == "loso" and subject_ids_all:
-                held_out_subject_id = subject_ids_all[0]
         else:
             raise ValueError(
                 "Need at least 2 subjects for subject-wise evaluation. Set evaluation.allow_single_subject=true to override."
@@ -337,15 +334,6 @@ def train(
             fold_id = fold_index
         else:
             splits = subject_wise_split(subject_ids_all, split_cfg)
-            if protocol == "loso":
-                held_out_override = getattr(cfg.evaluation, "held_out_subject_id", None)
-                cal_ratio = float(eval_spec.get("calibration_split", {}).get("calibration_ratio", 0.2))
-                splits, held_out_subject_id = subject_wise_loso_split(
-                    subject_ids_all,
-                    cal_ratio,
-                    split_cfg.seed,
-                    held_out_subject_id=held_out_override,
-                )
     dump_splits(splits, run_dir / "splits.json")
     split_manifest = {
         "protocol": split_protocol_name,

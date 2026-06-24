@@ -2,7 +2,7 @@ protocol_version: 1
 random_seed: 1337
 
 headline_protocol:
-  name: loso
+  name: holdout
   unit: subject
   keep_nights_together: true
 

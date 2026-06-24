@@ -64,6 +64,5 @@ evaluation:
   train_ratio: 0.775
   val_ratio: 0.05
   fold_index: 0
-  held_out_subject_id: null
 artifacts:
   root: artifacts/fixtures/holdout

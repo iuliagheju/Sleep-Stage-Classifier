@@ -10,17 +10,13 @@ from pathlib import Path
 
 import typer
 import yaml
-from omegaconf import OmegaConf
 
-from .train import _hash_payload, _resolve_config, train as train_command
+from .train import train as train_command
 from ..data.fixtures import build_edf_fixture_subset, build_fixture_subset
-from ..data.ingest import list_subject_ids
 from ..data.raw import validate_sleep_edfx
-from ..data.splits import unique_subject_ids
 from ..eval.schema import validate_metrics_schema, validate_summary_schema
 from ..eval.report import (
     aggregate_kfold_metrics,
-    aggregate_loso_metrics,
     build_comparison_report,
     build_dataset_summary,
     write_comparison_report,
@@ -35,20 +31,6 @@ def _load_yaml(path: Path) -> dict:
     if not path.exists():
         raise FileNotFoundError(f"Missing spec file at {path}")
     return yaml.safe_load(path.read_text())
-
-
-def _existing_loso_run(runs_root: Path, held_out_subject_id: str, config_hash: str) -> bool:
-    for metrics_path in runs_root.glob("*/metrics.json"):
-        try:
-            metrics = json.loads(metrics_path.read_text())
-        except json.JSONDecodeError:
-            continue
-        if metrics.get("held_out_subject_id") != held_out_subject_id:
-            continue
-        if metrics.get("config_hash") != config_hash:
-            continue
-        return True
-    return False
 
 
 @app.command("train")
@@ -120,62 +102,6 @@ def train_kfold(
         summary_path = output_root / "kfold_summary.json"
         summary_path.write_text(json.dumps(summary, indent=2))
         typer.echo(f"Wrote k-fold summary to {summary_path}")
-
-
-@app.command("train-loso")
-def train_loso(
-    config_path: str = typer.Option("configs", help="Directory containing Hydra configs"),
-    config_name: str = typer.Option("default", help="Config file name inside config_path"),
-    override: list[str] = typer.Option(
-        [],
-        "--override",
-        help="Hydra-style override, e.g. --override model.family=classical",
-    ),
-    runs_root: Path | None = typer.Option(
-        None,
-        "--runs-root",
-        help="Optional output directory for LOSO run artifacts",
-    ),
-    max_subjects: int | None = typer.Option(
-        None,
-        "--max-subjects",
-        min=1,
-        help="Optional limit on the number of held-out subjects to run",
-    ),
-) -> None:
-    base_cfg = _resolve_config(config_path, config_name, override)
-    data_dir = Path(base_cfg.data.dir)
-    subject_ids = sorted(unique_subject_ids(list_subject_ids(data_dir)))
-    if not subject_ids:
-        typer.echo(f"No subjects found under {data_dir}", err=True)
-        raise typer.Exit(code=1)
-    if max_subjects is not None:
-        subject_ids = subject_ids[:max_subjects]
-    output_root = runs_root or Path(getattr(base_cfg.artifacts, "root", "artifacts"))
-    output_root.mkdir(parents=True, exist_ok=True)
-    base_overrides = list(override)
-    base_overrides.extend(
-        [
-            "evaluation.protocol=loso",
-            f"artifacts.root={output_root}",
-        ]
-    )
-    for subject_id in subject_ids:
-        subject_overrides = list(base_overrides)
-        subject_overrides.append(f"evaluation.held_out_subject_id={subject_id}")
-        cfg = _resolve_config(config_path, config_name, subject_overrides)
-        config_hash = _hash_payload(OmegaConf.to_container(cfg, resolve=True))
-        if _existing_loso_run(output_root, subject_id, config_hash):
-            typer.echo(f"Skipping {subject_id} (existing run detected).")
-            continue
-        typer.echo(f"Running LOSO with held-out subject {subject_id}")
-        try:
-            train_command(config_path=config_path, config_name=config_name, override=subject_overrides)
-        except ValueError as exc:
-            if "Evaluation gates failed" in str(exc):
-                typer.echo(f"Gate failure for {subject_id}; continuing to next subject.")
-                continue
-            raise
 
 
 @app.command("make-fixture")
@@ -279,22 +205,6 @@ def eval_folds(
     output_path = out or (runs_root / "kfold_summary.json")
     output_path.write_text(json.dumps(summary, indent=2))
     typer.echo(f"Wrote k-fold summary to {output_path}")
-
-
-@app.command("eval-loso")
-def eval_loso(
-    runs_root: Path = typer.Option(..., "--runs-root", help="Directory containing LOSO run subdirectories"),
-    out: Path | None = typer.Option(None, "--out", help="Optional output path for LOSO summary"),
-) -> None:
-    metrics_paths = sorted(runs_root.glob("*/metrics.json"))
-    if not metrics_paths:
-        typer.echo(f"No metrics.json files found under {runs_root}", err=True)
-        raise typer.Exit(code=1)
-    runs = [json.loads(path.read_text()) for path in metrics_paths]
-    summary = aggregate_loso_metrics(runs)
-    output_path = out or (runs_root / "loso_summary.json")
-    output_path.write_text(json.dumps(summary, indent=2))
-    typer.echo(f"Wrote LOSO summary to {output_path}")
 
 
 @app.command("list-runs")

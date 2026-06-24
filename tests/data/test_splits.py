@@ -3,7 +3,6 @@ from __future__ import annotations
 from sleep_stager.data.raw import _subject_id_from_record
 from sleep_stager.data.splits import (
     SplitConfig,
-    subject_wise_loso_split,
     subject_wise_kfold_splits,
     subject_wise_split,
     unique_subject_ids,
@@ -26,26 +25,6 @@ def test_subject_wise_split_has_no_overlap():
 def test_subject_id_strips_night_suffix():
     assert _subject_id_from_record("ST0001J0") == "ST0001J"
     assert _subject_id_from_record("ST0001J1") == "ST0001J"
-
-
-def test_loso_split_keeps_nights_together():
-    record_ids = [
-        "ST0001J0",
-        "ST0001J1",
-        "ST0002J0",
-        "ST0002J1",
-        "ST0003J0",
-        "ST0003J1",
-    ]
-    subject_ids = [_subject_id_from_record(record_id) for record_id in record_ids]
-    splits, held_out = subject_wise_loso_split(subject_ids, val_ratio=0.2, seed=7)
-    assert held_out in splits["test"]
-    assert held_out not in splits["train"]
-    assert set(splits["train"]).isdisjoint(splits["test"])
-    for subject in set(subject_ids):
-        in_train = subject in splits["train"]
-        in_test = subject in splits["test"]
-        assert not (in_train and in_test)
 
 
 def test_kfold_keeps_subject_nights_together():

@@ -41,29 +41,6 @@ def aggregate_kfold_metrics(runs: List[Dict[str, Any]]) -> Dict[str, Any]:
     return summary
 
 
-def aggregate_loso_metrics(runs: List[Dict[str, Any]]) -> Dict[str, Any]:
-    if not runs:
-        raise ValueError("At least one run is required to aggregate metrics.")
-    summary: Dict[str, Any] = {
-        "num_folds": len(runs),
-        "run_ids": [run.get("run_id") for run in runs],
-        "held_out_subject_ids": [run.get("held_out_subject_id") for run in runs],
-        "folds": [
-            {
-                "run_id": run.get("run_id"),
-                "held_out_subject_id": run.get("held_out_subject_id"),
-                "model_name": run.get("model_name"),
-            }
-            for run in runs
-        ],
-        "metrics": _aggregate_section(runs, "metrics", METRIC_KEYS),
-        "calibration": _aggregate_section(runs, "calibration", CALIBRATION_KEYS),
-        "temporal": _aggregate_section(runs, "temporal", TEMPORAL_KEYS),
-        "gates": _aggregate_gates(runs),
-    }
-    return summary
-
-
 def _aggregate_section(
     runs: Iterable[Dict[str, Any]], section: str, keys: Iterable[str]
 ) -> Dict[str, Dict[str, float]]:

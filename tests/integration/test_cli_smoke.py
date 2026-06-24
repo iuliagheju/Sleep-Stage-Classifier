@@ -173,35 +173,6 @@ def test_cli_compare_runs(smoke_run):
     assert "efficiency" in row
 
 
-@pytest.mark.smoke
-def test_cli_train_loso_runs_all_subjects(tmp_path, fixture_dataset):
-    repo_root = Path(__file__).resolve().parents[2]
-    env = os.environ.copy()
-    env["DATA_DIR"] = str(fixture_dataset)
-    env["PYTHONPATH"] = str(repo_root)
-    artifacts_root = tmp_path / "fixtures" / "loso"
-    cmd = [
-        sys.executable,
-        "-m",
-        "sleep_stager.cli.main",
-        "train-loso",
-        "--config-path",
-        str(repo_root / "configs"),
-        "--config-name",
-        "default",
-        "--override",
-        f"artifacts.root={artifacts_root}",
-        "--override",
-        "model.family=classical",
-        "--override",
-        "evaluation.enforce_gates=false",
-    ]
-    result = subprocess.run(cmd, cwd=repo_root, env=env, capture_output=True)
-    assert result.returncode == 0
-    run_dirs = sorted([path for path in artifacts_root.iterdir() if path.is_dir()])
-    assert len(run_dirs) == 3
-
-
 def test_cli_fetch_data_validate(tmp_path):
     repo_root = Path(__file__).resolve().parents[2]
     env = os.environ.copy()

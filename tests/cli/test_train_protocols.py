@@ -5,7 +5,7 @@ import pytest
 from sleep_stager.cli.train import _resolve_protocol, _select_kfold_fold
 
 
-def _spec(headline: str = "loso", secondary: str = "kfold_subject") -> dict:
+def _spec(headline: str = "holdout", secondary: str = "kfold_subject") -> dict:
     return {
         "headline_protocol": {"name": headline},
         "secondary_protocol": {"name": secondary, "k": 5},
@@ -13,7 +13,7 @@ def _spec(headline: str = "loso", secondary: str = "kfold_subject") -> dict:
 
 
 def test_resolve_protocol_defaults_to_headline():
-    assert _resolve_protocol(_spec(), None) == "loso"
+    assert _resolve_protocol(_spec(), None) == "holdout"
 
 
 def test_resolve_protocol_secondary_alias():
@@ -21,7 +21,7 @@ def test_resolve_protocol_secondary_alias():
 
 
 def test_resolve_protocol_headline_alias():
-    assert _resolve_protocol(_spec(), "headline") == "loso"
+    assert _resolve_protocol(_spec(), "headline") == "holdout"
 
 
 def test_resolve_protocol_invalid_raises():
